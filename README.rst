@@ -1,7 +1,7 @@
 mcufont-big
 ===========
 
-This repository contains a bunch of opinionated changes to the wonderful [mcufont](https://github.com/mcufont/mcufont) font rendering library. Namely:
+This repository contains a bunch of opinionated changes to the wonderful `mcufont <https://github.com/mcufont/mcufont>`_ font rendering library. Namely:
 
 * The ability to load fonts from disk/flash 
 
