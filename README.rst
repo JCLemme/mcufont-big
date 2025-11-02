@@ -1,3 +1,20 @@
+mcufont-big
+===========
+
+This repository contains a bunch of opinionated changes to the wonderful [mcufont](https://github.com/mcufont/mcufont) font rendering library. Namely:
+
+* The ability to load fonts from disk/flash 
+
+* Hooks into the renderer to allow font changes mid-paragraph (for rendering rich text)
+
+* Bindings to other languages, first and foremost MicroPython
+
+As of now, the basics are supported - there's a simple MPy module and you can import black-and-white fonts from files into RAM. 
+
+Documentation and the rendering hooks are to follow.
+
+The original README continues below.
+
 =================
 MCUFont: Overview
 =================
