@@ -33,18 +33,18 @@ struct mf_bwfont_char_range_s
     uint8_t width;
 
     /* Lookup table for the character widths. NULL if width is specified. */
-    const uint8_t *glyph_widths;
+    uint8_t *glyph_widths;
 
     /* Lookup table for the character offsets.  Multiply by height_bytes
      * to get the byte offset. Also allows lookup of the number of columns.
      * NULL if width is specified. */
-    const uint16_t *glyph_offsets;
+    uint16_t *glyph_offsets;
 
     /* Table for the glyph data.
      * The data for each glyph is column-by-column, with N bytes per each
      * column. The LSB of the first byte is the top left pixel.
      */
-    const uint8_t *glyph_data;
+    uint8_t *glyph_data;
 };
 
 /* Structure for the font */
@@ -53,16 +53,15 @@ struct mf_bwfont_s
     struct mf_font_s font;
 
     /* Version of the font format. */
-    const uint8_t version;
+    uint8_t version;
 
     /* Number of character ranges. */
-    const uint8_t char_range_count;
+    uint8_t char_range_count;
 
     /* Array of the character ranges */
-    const struct mf_bwfont_char_range_s *char_ranges;
+    struct mf_bwfont_char_range_s *char_ranges;
 };
 
-#ifdef MF_BWFONT_INTERNALS
 /* Internal functions, don't use these directly. */
 MF_EXTERN uint8_t mf_bwfont_render_character(const struct mf_font_s *font,
                                              int16_t x0, int16_t y0,
@@ -72,6 +71,5 @@ MF_EXTERN uint8_t mf_bwfont_render_character(const struct mf_font_s *font,
 
 MF_EXTERN uint8_t mf_bwfont_character_width(const struct mf_font_s *font,
                                             mf_char character);
-#endif
 
 #endif

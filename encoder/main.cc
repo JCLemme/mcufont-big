@@ -425,8 +425,16 @@ static status_t cmd_bwfont_export(const std::vector<std::string> &args)
 
     {
         std::ofstream source(dst);
-        mcufont::bwfont::write_source(source, dst, *f);
-        std::cout << "Wrote " << dst << std::endl;
+        if(dst.find(".mff") != std::string::npos)
+        {
+            mcufont::bwfont::write_case(source, dst, *f);
+            std::cout << "Wrote " << dst << " as typecase" << std::endl;
+        }
+        else
+        {
+            mcufont::bwfont::write_source(source, dst, *f);
+            std::cout << "Wrote " << dst << " as .c source" << std::endl;
+        }
     }
 
     return STATUS_OK;
@@ -436,21 +444,21 @@ static status_t cmd_bwfont_export(const std::vector<std::string> &args)
 static const char *usage_msg =
     "Usage: mcufont <command> [options] ...\n"
     "Commands for importing:\n"
-    "   import_ttf <ttffile> <size> [bw]     Import a .ttf font into a data file.\n"
-    "   import_bdf <bdffile>                 Import a .bdf font into a data file.\n"
+    "   import_ttf <ttffile> <size> [bw]            Import a .ttf font into a data file.\n"
+    "   import_bdf <bdffile>                        Import a .bdf font into a data file.\n"
     "\n"
     "Commands for inspecting and editing data files:\n"
-    "   filter <datfile> <range> ...         Remove everything except specified characters.\n"
-    "   show_glyph <datfile> <index>         Show the glyph at index.\n"
+    "   filter <datfile> <range> ...                Remove everything except specified characters.\n"
+    "   show_glyph <datfile> <index>                Show the glyph at index.\n"
     "\n"
     "Commands specific to rlefont format:\n"
-    "   rlefont_size <datfile>               Check the encoded size of the data file.\n"
-    "   rlefont_optimize <datfile>           Perform an optimization pass on the data file.\n"
-    "   rlefont_export <datfile> [outfile]   Export to .c source code.\n"
-    "   rlefont_show_encoded <datfile>       Show the encoded data for debugging.\n"
+    "   rlefont_size <datfile>                      Check the encoded size of the data file.\n"
+    "   rlefont_optimize <datfile>                  Perform an optimization pass on the data file.\n"
+    "   rlefont_export <datfile> [outfile]          Export to .c source code.\n"
+    "   rlefont_show_encoded <datfile>              Show the encoded data for debugging.\n"
     "\n"
     "Commands specific to bwfont format:\n"
-    "   bwfont_export <datfile> [outfile]    Export to .c source code.\n"
+    "   bwfont_export <datfile> [outfile]<.c/.mff>  Export to .c source or a typecase file.\n"
     "";
 
 typedef status_t (*cmd_t)(const std::vector<std::string> &args);

@@ -1,5 +1,5 @@
-CXXFLAGS = -O2 -Wall -Werror -Wno-unused-function -Wno-sign-compare -std=c++0x
-CXXFLAGS += -ggdb
+CXXFLAGS = -O2 -Wall -Werror -Wno-unused-function -Wno-sign-compare -std=c++0x -g
+CXXFLAGS += -glldb
 
 ifneq ($(shell uname -s),Darwin)
 	LDFLAGS += -pthread

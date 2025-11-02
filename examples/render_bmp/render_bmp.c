@@ -1,10 +1,11 @@
 /* Example application that renders the given (UTF-8 or ASCII) string into
  * a BMP image. */
 
-#include <mcufont.h>
+#include "../../decoder/mcufont.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../../decoder/mf_font.h"
 #include "write_bmp.h"
 
 /***************************************
@@ -13,6 +14,7 @@
 
 typedef struct {
     const char *fontname;
+    const char *fontfile;
     const char *filename;
     const char *text;
     bool justify;
@@ -34,6 +36,7 @@ static const char usage_text[] =
     "Usage: ./render_bmp [options] string\n"
     "Options:\n"
     "    -f font     Specify the font name to use.\n"
+    "    -l font     Load a font from disk.\n"
     "    -o out.bmp  Specify the output bmp file name.\n"
     "    -a l|c|r|j  Align left/center/right/justify.\n"
     "    -w width    Width of the image to render.\n"
@@ -50,6 +53,7 @@ static bool parse_options(int argc, const char **argv, options_t *options)
 
     options->fontname = mf_get_font_list()->font->short_name;
     options->filename = "out.bmp";
+    options->fontfile = NULL;
     options->text = default_text;
     options->width = 200;
     options->margin = 5;
@@ -61,6 +65,10 @@ static bool parse_options(int argc, const char **argv, options_t *options)
         if (strcmp(cmd, "-f") == 0 && argc)
         {
             options->fontname = *argv++;
+        }
+        else if (strcmp(cmd, "-l") == 0 && argc)
+        {
+            options->fontfile = *argv++;
         }
         else if (strcmp(cmd, "-o") == 0 && argc)
         {
@@ -225,7 +233,24 @@ int main(int argc, const char **argv)
         return 1;
     }
 
-    font = mf_find_font(options.fontname);
+    if(options.fontfile != NULL)
+    {
+        FILE *f = fopen(options.fontfile, "rb");
+        fseek(f, 0, SEEK_END);
+        long fsize = ftell(f);
+        fseek(f, 0, SEEK_SET);  /* same as rewind(f); */
+
+        uint8_t* bulk = malloc(fsize + 1);
+        fread(bulk, fsize, 1, f);
+        fclose(f);
+
+        font = mf_make_font(bulk, fsize);
+        printf("Font loaded, name %s\n", font->full_name);
+    }
+    else
+    {
+        font = mf_find_font(options.fontname);
+    }
 
     if (!font)
     {

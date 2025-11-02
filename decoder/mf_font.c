@@ -1,5 +1,10 @@
 #include "mf_font.h"
+#include "mf_bwfont.h"
+#include "mf_rlefont.h"
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 /* This will be made into a list of included fonts using macro magic. */
 #define MF_INCLUDED_FONTS 0
@@ -120,3 +125,130 @@ const struct mf_font_list_s *mf_get_font_list(void)
     return MF_INCLUDED_FONTS;
 }
 
+// Note to self: the alpha value is actually 0-16, so you can draw an rle font by thresholding 128
+
+struct mf_font_s* mf_make_font(uint8_t* bulk, uint32_t len)
+{
+    struct mf_font_s* built;
+    uint32_t run = 4;
+
+    // Determine type and version.
+    if(strequals("ftbw", (char*)bulk))
+    //if(bulk[0] == 'f' && bulk[1] == 't' && bulk[2] == 'b' && bulk[3] == 'w')
+    {
+        // Black and white fonts get a flag.
+        built = calloc(1, sizeof(struct mf_bwfont_s));
+        built->flags = MF_FONT_FLAG_BW;
+    }
+    else if(strequals("ftrl", (char*)bulk))
+    //else if(bulk[0] == 'f' && bulk[1] == 't' && bulk[2] == 'r' && bulk[3] == 'l')
+    {
+        // Normal run-length encoded font.
+        built = calloc(1, sizeof(struct mf_rlefont_s));
+    }
+    else
+    {
+        // No idea what this is.
+        return NULL;
+    }
+
+    uint8_t typecase_version = bulk[run++];
+    uint8_t font_version = bulk[run++];
+
+    if(typecase_version != MF_TYPECASE_VERSION_SUPPORTED)
+    {
+        free(built);
+        return NULL;
+    }
+
+    // Load the common font fields...
+    built->width = bulk[run++];
+    built->height = bulk[run++];
+    built->min_x_advance = bulk[run++];
+    built->max_x_advance = bulk[run++];
+    built->baseline_x = bulk[run++];
+    built->baseline_y = bulk[run++];
+    built->line_height = bulk[run++];
+    built->flags = bulk[run++];
+
+    // Little endian u16.
+    built->fallback_character = *((uint16_t*)(bulk+run)); run += 2;
+
+    // Pascal strings too.
+    uint8_t slen = bulk[run++];
+    built->full_name = calloc(slen+2, sizeof(char));
+    memcpy(built->full_name, bulk+run, slen);
+    run += slen;
+
+    slen = bulk[run++];
+    built->short_name = calloc(slen+2, sizeof(char));
+    memcpy(built->short_name, bulk+run, slen);
+    run += slen;
+
+    // Time for details.
+    if(built->flags & MF_FONT_FLAG_BW)
+    {
+        // Black and white fonts don't have much going on.
+        struct mf_bwfont_s* builtbw = (struct mf_bwfont_s*)built;
+        builtbw->version = font_version;
+        builtbw->char_range_count = bulk[run++];
+
+        // Sidebar: set the appropriate handler functions too.
+        built->character_width =  &mf_bwfont_character_width;
+        built->render_character = &mf_bwfont_render_character;
+
+        // We'll need to allocate the ranges separately.
+        builtbw->char_ranges = calloc(builtbw->char_range_count, sizeof(struct mf_bwfont_char_range_s));
+
+        // Ready aim fire
+        for(int r = 0; r < builtbw->char_range_count; r++)
+        {
+            struct mf_bwfont_char_range_s* range = &(builtbw->char_ranges[r]);
+            
+            // Little endian u16s.
+            range->first_char = *((uint16_t*)(bulk+run)); run += 2;
+            range->char_count = *((uint16_t*)(bulk+run)); run += 2;
+
+            range->offset_x = bulk[run++];
+            range->offset_y = bulk[run++];
+            range->height_bytes = bulk[run++];
+            range->height_pixels = bulk[run++];
+            range->width = bulk[run++];
+
+            // These next fields are stored as offsets into the byte array, so make the math work.
+            // Also pay attention to the nulls - fixed fonts don't need width information.
+            uint32_t offs = *((uint32_t*)(bulk+run)); run += 4;
+            range->glyph_widths = (range->width) ? NULL : (uint8_t*)(bulk+offs);
+
+            offs = *((uint32_t*)(bulk+run)); run += 4;
+            range->glyph_offsets = (range->width) ? NULL : (uint16_t*)(bulk+offs);
+
+            offs = *((uint32_t*)(bulk+run)); run += 4;
+            range->glyph_data = (uint8_t*)(bulk+offs);
+        }
+    }
+    else
+    {
+        //("panic! loading rle fonts is not implemented yet\n");
+        return NULL;
+    }
+
+    // Good work everyone.
+    return built;
+}
+
+void mf_destroy_font(struct mf_font_s* target)
+{
+    if(target->flags & MF_FONT_FLAG_BW)
+    {
+        free(((struct mf_bwfont_s*)(target))->char_ranges);
+    }
+    else
+    {
+        // Not done with this yet.
+    }
+
+    free(target->short_name);
+    free(target->full_name);
+    free(target);
+}

@@ -1,4 +1,5 @@
 #include "export_bwfont.hh"
+#include <iostream>
 #include <vector>
 #include <iomanip>
 #include <map>
@@ -11,6 +12,7 @@
 #include "ccfixes.hh"
 
 #define BWFONT_FORMAT_VERSION 4
+#define TYPECASE_FORMAT_VERSION 2
 
 namespace mcufont {
 namespace bwfont {
@@ -244,6 +246,214 @@ void write_source(std::ostream &out, std::string name, const DataFile &datafile)
     out << std::endl;
     out << "/* End of automatically generated font definition for " << name << ". */" << std::endl;
     out << std::endl;
+}
+
+
+
+
+static void encode_character_range_raw(std::vector<std::vector<unsigned>>& blocks,
+                                   const DataFile &datafile,
+                                   const char_range_t &range,
+                                   unsigned range_index,
+                                   cropinfo_t &cropinfo)
+{
+    std::vector<DataFile::glyphentry_t> glyphs;
+    bool constant_width = true;
+    int width = datafile.GetGlyphEntry(range.glyph_indices[0]).width;
+
+    // Copy all the glyphs in this range for the purpose of cropping them.
+    for (int glyph_index: range.glyph_indices)
+    {
+        if (glyph_index < 0)
+        {
+            // Missing glyph
+            DataFile::glyphentry_t dummy = {};
+            glyphs.push_back(dummy);
+        }
+        else
+        {
+            auto glyph = datafile.GetGlyphEntry(glyph_index);
+            glyphs.push_back(glyph);
+
+            if (glyph.width != width)
+            {
+                constant_width = false;
+                width = 0;
+            }
+        }
+    }
+
+    // Crop the glyphs in this range. Getting rid of a few rows at top
+    // or left can save a bunch of bytes with minimal cost.
+    DataFile::fontinfo_t old_fi = datafile.GetFontInfo();
+    DataFile::fontinfo_t new_fi = old_fi;
+    crop_glyphs(glyphs, new_fi);
+
+    if (new_fi.max_width != width)
+    {
+        constant_width = false;
+        width = 0;
+    }
+
+    // Fill in the crop information
+    cropinfo.offset_x = old_fi.baseline_x - new_fi.baseline_x;
+    cropinfo.offset_y = old_fi.baseline_y - new_fi.baseline_y;
+    cropinfo.height_pixels = new_fi.max_height;
+    cropinfo.height_bytes = (cropinfo.height_pixels + 7) / 8;
+    cropinfo.width = width;
+
+    // Then format and write out the glyph data
+    std::vector<unsigned> offsets;
+    std::vector<unsigned> data;
+    std::vector<unsigned> widths;
+    size_t stride = cropinfo.height_bytes;
+
+    for (const DataFile::glyphentry_t &g : glyphs)
+    {
+        offsets.push_back(data.size() / stride);
+        widths.push_back(g.width);
+        encode_glyph(g, new_fi, data, width);
+    }
+    offsets.push_back(data.size() / stride);
+
+    if(!constant_width)
+    {
+        blocks.push_back(widths);
+        blocks.push_back(offsets);
+    }
+    else
+    {
+        blocks.push_back({});
+        blocks.push_back({});
+    }
+
+    blocks.push_back(data);
+}
+
+void write_case(std::ostream &out, std::string name, const DataFile &datafile)
+{
+    name = filename_to_identifier(name);
+
+    int flags = datafile.GetFontInfo().flags | DataFile::FLAG_BW;
+    uint16_t tmptwo;
+    uint32_t tmpfour;
+    uint32_t run = 0;
+
+    // Split the characters into ranges
+    DataFile::fontinfo_t f = datafile.GetFontInfo();
+    size_t glyph_size = f.max_width * ((f.max_height + 7) / 8);
+    auto get_glyph_size = [=](size_t i) { return glyph_size; };
+    std::vector<char_range_t> ranges = compute_char_ranges(datafile,
+        get_glyph_size, 65536, 16);
+
+    // Write out glyph data for character ranges
+    std::vector<cropinfo_t> crops;
+    std::vector<std::vector<unsigned>> blocks;
+
+    for (size_t i = 0; i < ranges.size(); i++)
+    {
+        cropinfo_t cropinfo;
+        encode_character_range_raw(blocks, datafile, ranges.at(i), i, cropinfo);
+        crops.push_back(cropinfo);
+    }
+
+
+    // Write the magic number and version info.
+    out.write("ftbw", 4);                           run += 4;
+    out.put(TYPECASE_FORMAT_VERSION);               run++;
+    out.put(BWFONT_FORMAT_VERSION);                 run++;
+
+    // Encode fields next.
+    out.put(datafile.GetFontInfo().max_width);      run++;
+    out.put(datafile.GetFontInfo().max_height);     run++;
+    out.put(get_min_x_advance(datafile));           run++;
+    out.put(get_max_x_advance(datafile));           run++;
+    out.put(datafile.GetFontInfo().baseline_x);     run++;
+    out.put(datafile.GetFontInfo().baseline_y);     run++;
+    out.put(datafile.GetFontInfo().line_height);    run++;
+    out.put(flags);                                 run++;
+
+    // Long field. We'll be debilish and assume little endianness.
+    tmptwo = select_fallback_char(datafile);
+    out.write((char*)&tmptwo, sizeof(uint16_t));    run += 2;
+
+    // Write names.
+    std::string fname = datafile.GetFontInfo().name;
+    out.put(fname.length());                        run++;
+    out.write(fname.c_str(), fname.length());       run += fname.length();
+
+    out.put(name.length());                         run++;
+    out.write(name.c_str(), name.length());         run += name.length();
+
+    // Character ranges, which is where it gets tricky.
+    out.put(ranges.size());                         run++;
+
+    // We'll need to know where glyph data starts, so do some thinking beforehand...
+    // (if it wasn't clear, these are the sizes of all the fields in the range)
+    run += (2 + 2 + 1 + 1 + 1 + 1 + 1 + 4 + 4 + 4) * ranges.size();
+    std::cout << "Final offset is " << std::hex <<  run << std::endl;
+
+    for (size_t i = 0; i < ranges.size(); i++)
+    {
+        std::string offsets = (crops[i].width) ? "0" : "mf_bwfont_" + name + "_glyph_offsets_" + std::to_string(i);
+        std::string widths = (crops[i].width) ? "0" : "mf_bwfont_" + name + "_glyph_widths_" + std::to_string(i);
+
+        tmptwo = ranges.at(i).first_char;
+        out.write((char*)&tmptwo, sizeof(uint16_t));
+        tmptwo = ranges.at(i).char_count;
+        out.write((char*)&tmptwo, sizeof(uint16_t));
+
+        out.put(crops[i].offset_x);
+        out.put(crops[i].offset_y);
+        out.put(crops[i].height_bytes);
+        out.put(crops[i].height_pixels);
+        out.put(crops[i].width);
+
+        if(crops[i].width)
+        {
+            tmpfour = 0;
+            out.write((char*)&tmpfour, sizeof(uint32_t));
+            out.write((char*)&tmpfour, sizeof(uint32_t));
+        }
+        else
+        {
+            tmpfour = run;
+            out.write((char*)&tmpfour, sizeof(uint32_t));
+            run += (blocks.at((i*3)+0)).size() * sizeof(uint8_t);
+
+            tmpfour = run;
+            out.write((char*)&tmpfour, sizeof(uint32_t));
+            run += (blocks.at((i*3)+1)).size() * sizeof(uint16_t);
+        }
+
+        tmpfour = run;
+        out.write((char*)&tmpfour, sizeof(uint32_t));
+        run += (blocks.at((i*3)+2)).size() * sizeof(uint8_t);
+    }
+
+    // All the ranges are recorded - time to blit the glyph data
+    for(size_t i = 0; i < blocks.size(); i+=3)
+    {
+        // Lol lmao even
+        for(size_t j = 0; j < blocks.at(i+0).size(); j++)
+        {
+            out.put(blocks.at(i+0).at(j));
+        }
+
+        // Lol lmao even
+        for(size_t j = 0; j < blocks.at(i+1).size(); j++)
+        {
+            tmptwo = blocks.at(i+1).at(j);
+            out.write((char*)&tmptwo, sizeof(uint16_t));
+        }
+
+        // Lol lmao even
+        for(size_t j = 0; j < blocks.at(i+2).size(); j++)
+        {
+            out.put(blocks.at(i+2).at(j));
+        }
+    }
+
 }
 
 

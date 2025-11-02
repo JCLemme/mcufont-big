@@ -7,6 +7,8 @@
 
 #include "mf_encoding.h"
 
+#define MF_TYPECASE_VERSION_SUPPORTED 2
+
 /* Callback function that writes pixels to screen / buffer / whatever.
  *
  * x:     X coordinate of the first pixel to write.
@@ -22,10 +24,10 @@ typedef void (*mf_pixel_callback_t) (int16_t x, int16_t y, uint8_t count,
 struct mf_font_s
 {
     /* Full name of the font, comes from the original font file. */
-    const char *full_name;
+    char *full_name;
 
     /* Short name of the font, comes from file name. */
-    const char *short_name;
+    char *short_name;
 
     /* Width and height of the character bounding box. */
     uint8_t width;
@@ -64,6 +66,8 @@ struct mf_font_s
 /* The flag definitions for the font.flags field. */
 #define MF_FONT_FLAG_MONOSPACE 0x01
 #define MF_FONT_FLAG_BW        0x02
+#define MF_FONT_FLAG_ITALIC    0x04
+#define MF_FONT_FLAG_BOLD      0x08
 
 /* Lookup structure for searching fonts by name. */
 struct mf_font_list_s
@@ -133,5 +137,13 @@ MF_EXTERN const struct mf_font_s *mf_find_font(const char *name);
 
 /* Get the list of included fonts */
 MF_EXTERN const struct mf_font_list_s *mf_get_font_list(void);
+
+/* Make a font from an array of bytes. 
+ */
+MF_EXTERN struct mf_font_s* mf_make_font(uint8_t* bulk, uint32_t len);
+
+/* Unmake a font and free all its members.
+ */
+MF_EXTERN void mf_destroy_font(struct mf_font_s* target);
 
 #endif

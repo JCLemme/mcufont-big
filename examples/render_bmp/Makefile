@@ -1,4 +1,4 @@
-CFLAGS = -O0 -Wall -Werror -ansi
+CFLAGS = -O0 -ansi
 CFLAGS += -ggdb
 
 # Directory containing the font files.
@@ -11,7 +11,7 @@ include $(MFDIR)/mcufont.mk
 all: render_bmp
 
 render_bmp: render_bmp.c write_bmp.c $(MFSRC)
-	$(CC) $(CFLAGS) -I $(FONTDIR) -I $(MFINC) -o $@ $^
+	$(CC) $(CFLAGS) -I$(FONTDIR) -I$(MFINC) -o $@ $^
 
 clean:
 	rm -f render_bmp

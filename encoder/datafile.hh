@@ -46,6 +46,8 @@ public:
 
     static const int FLAG_MONOSPACE = 0x01;
     static const int FLAG_BW = 0x02;
+    static const int FLAG_ITALIC = 0x04;
+    static const int FLAG_BOLD = 0x08;
 
     // Construct from data in memory.
     DataFile(const std::vector<dictentry_t> &dictionary,
