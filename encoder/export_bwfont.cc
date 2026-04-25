@@ -79,7 +79,8 @@ static void encode_character_range(std::ostream &out,
 {
     std::vector<DataFile::glyphentry_t> glyphs;
     bool constant_width = true;
-    int width = datafile.GetGlyphEntry(range.glyph_indices[0]).width;
+
+    int width = -1;
 
     // Copy all the glyphs in this range for the purpose of cropping them.
     for (int glyph_index: range.glyph_indices)
@@ -92,6 +93,13 @@ static void encode_character_range(std::ostream &out,
         }
         else
         {
+            // Sometimes the first glpyh is a dummy, so use the first width we can find.
+            // nb. if we fix the range exporter this won't be such a big deal
+            if (width < 0)
+            {
+                width = datafile.GetGlyphEntry(glyph_index).width;
+            }
+
             auto glyph = datafile.GetGlyphEntry(glyph_index);
             glyphs.push_back(glyph);
 
@@ -259,7 +267,7 @@ static void encode_character_range_raw(std::vector<std::vector<unsigned>>& block
 {
     std::vector<DataFile::glyphentry_t> glyphs;
     bool constant_width = true;
-    int width = datafile.GetGlyphEntry(range.glyph_indices[0]).width;
+    int width = -1;
 
     // Copy all the glyphs in this range for the purpose of cropping them.
     for (int glyph_index: range.glyph_indices)
@@ -272,6 +280,12 @@ static void encode_character_range_raw(std::vector<std::vector<unsigned>>& block
         }
         else
         {
+            // Sometimes the first glpyh is a dummy, so use the first width we can find.
+            if (width < 0)
+            {
+                width = datafile.GetGlyphEntry(glyph_index).width;
+            }
+
             auto glyph = datafile.GetGlyphEntry(glyph_index);
             glyphs.push_back(glyph);
 

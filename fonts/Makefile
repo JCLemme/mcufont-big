@@ -8,10 +8,10 @@ FONTS = DejaVuSans12 DejaVuSans12bw DejaVuSerif16 DejaVuSerif32 \
 # Characters to include in the fonts
 CHARS = 0-255 0x2010-0x2015
 
-all: $(FONTS:=.c) $(FONTS:=.dat) fonts.h
+all: $(FONTS:=.c) $(FONTS:=.dat) $(FONTS:=.mff) fonts.h
 
 clean:
-	rm -f $(FONTS:=.c) $(FONTS:=.dat)
+	rm -f $(FONTS:=.c) $(FONTS:=.dat) $(FONTS:=.mff)
 
 fonts.h: $(FONTS:=.c)
 	printf '$(foreach font,$(FONTS),\n#include "$(font).c")\n' > $@
@@ -25,30 +25,39 @@ fixed_5x8.c: fixed_5x8.dat $(MCUFONT)
 DejaVuSans12bw_bwfont.c: DejaVuSans12bw_bwfont.dat $(MCUFONT)
 	$(MCUFONT) bwfont_export $<
 
+
+fixed_5x8.mff: fixed_5x8.dat $(MCUFONT)
+	$(MCUFONT) bwfont_export $<
+
+DejaVuSans12bw_bwfont.mff: DejaVuSans12bw_bwfont.dat $(MCUFONT)
+	$(MCUFONT) bwfont_export $<
+
+
 DejaVuSans12bw_bwfont.dat: DejaVuSans12bw.dat
 	cp $< $@
-	
+
+# These are supposed to be optimized for 50 cycles. Kept shorter here for testing reasons.
 DejaVuSans12.dat: DejaVuSans.ttf
 	$(MCUFONT) import_ttf $< 12
 	$(MCUFONT) filter $@ $(CHARS)
-	$(MCUFONT) rlefont_optimize $@ 50
+	$(MCUFONT) rlefont_optimize $@ 5
 
 DejaVuSans12bw.dat: DejaVuSans.ttf
 	$(MCUFONT) import_ttf $< 12 bw
 	$(MCUFONT) filter $@ $(CHARS)
-	$(MCUFONT) rlefont_optimize $@ 50
+	$(MCUFONT) rlefont_optimize $@ 5
 
 DejaVuSerif16.dat: DejaVuSerif.ttf
 	$(MCUFONT) import_ttf $< 16
 	$(MCUFONT) filter $@ $(CHARS)
-	$(MCUFONT) rlefont_optimize $@ 50
+	$(MCUFONT) rlefont_optimize $@ 5
 
 DejaVuSerif32.dat: DejaVuSerif.ttf
 	$(MCUFONT) import_ttf $< 32
 	$(MCUFONT) filter $@ $(CHARS)
-	$(MCUFONT) rlefont_optimize $@ 50
+	$(MCUFONT) rlefont_optimize $@ 5
 
 %.dat: %.bdf
 	$(MCUFONT) import_bdf $<
 	$(MCUFONT) filter $@ $(CHARS)
-	$(MCUFONT) rlefont_optimize $@ 50
+	$(MCUFONT) rlefont_optimize $@ 5
